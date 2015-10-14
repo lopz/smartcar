@@ -17,29 +17,32 @@
     <Switch
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="New Switch"
-        android:id="@+id/switch1"
+        android:text="Engine"
+        android:id="@+id/swEngine"
         android:layout_below="@+id/txtNameBT"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="78dp" />
+        android:layout_marginTop="78dp"
+        android:checked="false" />
 
     <ToggleButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="New ToggleButton"
-        android:id="@+id/toggleButton"
-        android:layout_centerVertical="true"
-        android:layout_alignRight="@+id/switch1"
-        android:layout_alignEnd="@+id/switch1" />
+        android:text="Engine"
+        android:id="@+id/btnEngine"
+        android:checked="false"
+        android:layout_below="@+id/swEngine"
+        android:layout_alignRight="@+id/swEngine"
+        android:layout_alignEnd="@+id/swEngine"
+        android:layout_marginTop="58dp" />
 
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="New Button"
+        android:text="Conectar"
         android:id="@+id/btnConnet"
         android:layout_below="@+id/txtNameBT"
-        android:layout_alignRight="@+id/switch1"
-        android:layout_alignEnd="@+id/switch1" />
+        android:layout_alignRight="@+id/swEngine"
+        android:layout_alignEnd="@+id/swEngine" />
 
     <ProgressBar
         style="?android:attr/progressBarStyleHorizontal"
@@ -47,10 +50,10 @@
         android:layout_height="wrap_content"
         android:id="@+id/progressBar"
         android:layout_alignParentBottom="true"
-        android:layout_alignRight="@+id/switch1"
-        android:layout_alignEnd="@+id/switch1"
+        android:layout_alignRight="@+id/swEngine"
+        android:layout_alignEnd="@+id/swEngine"
         android:layout_marginBottom="66dp"
-        android:layout_alignLeft="@+id/switch1"
-        android:layout_alignStart="@+id/switch1" />
+        android:layout_alignLeft="@+id/swEngine"
+        android:layout_alignStart="@+id/swEngine" />
 
 </RelativeLayout>

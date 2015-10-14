@@ -10,7 +10,6 @@ import java.io.OutputStream;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.bluetooth.BluetoothServerSocket;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -31,14 +30,27 @@ import android.widget.Switch;
 public class MainActiviy extends Activity {
     // Debugging
     private static final String TAG = "SmartCar";
+    private static final String address = "00:13:03:26:13:56";
+    // Intent request codes
+    private static final int REQUEST_CONNECT_DEVICE_SECURE = 1;
+    private static final int REQUEST_CONNECT_DEVICE_INSECURE = 2;
+    private static final int REQUEST_ENABLE_BT = 3;
 
-    Button btnConnect;
-    TextView txtNameBT;
+    // Unique UUID for this application
+    private static final UUID MY_UUID_SECURE =
+            UUID.fromString("fa87c0d0-afac-11de-8a39-0800200c9a66");
+    private static final UUID MY_UUID_INSECURE =
+            UUID.fromString("8ce255c0-200a-11e0-ac64-0800200c9a66");
+
+    private Button btnConnect;
+    private Button btnEngine;
+    private TextView txtNameBT;
 
     BluetoothAdapter btAdapter;
     BluetoothSocket btSocket;
     BluetoothDevice btDevice;
-    Set<BluetoothDevice> pairedDevices;
+    private ConnectThread mConnectThread;
+    private ConnectedThread mConnectedThread;
     ConnectAsyncTask connAsynTask = new ConnectAsyncTask();
 
 
@@ -52,34 +64,36 @@ public class MainActiviy extends Activity {
             @Override
             public void onClick(View view) {
                 btAdapter = BluetoothAdapter.getDefaultAdapter();
-                if(!btAdapter.isEnabled()) {
-                    Intent intentBluetooth = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                    startActivityForResult(intentBluetooth, 0);
+                // If BT is not on, request that it be enabled.
+                // setupChat() will then be called during onActivityResult
+                if (!btAdapter.isEnabled()) {
+                    Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                    startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+                    // Otherwise, setup the chat session
+                } else {
+                    connectDevice();
                 }
-                //if (btAdapter.getState()) {
-                    btDevice = btAdapter.getRemoteDevice("00:13:03:26:13:56");
-                    Toast.makeText(getApplication(), "Name: " + btDevice.getName(), Toast.LENGTH_LONG).show();
-                //}
-                /*pairedDevices = btAdapter.getBondedDevices();
-                if(pairedDevices.size() > 0){
-                    for (BluetoothDevice device : pairedDevices){
-                        txtNameBT.setText(device.getName());
+            }
+        });
 
-                    }
-                }*/
-
-                connAsynTask.execute(btDevice);
-
-                OutputStream mOutStream = null;
+        btnEngine = (Button)findViewById(R.id.btnEngine);
+        btnEngine.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                /*OutputStream mOutStream;
                 try{
                     if (btSocket.isConnected()){
+                        byte[] code = "01".getBytes();
                         mOutStream = btSocket.getOutputStream();
-                        mOutStream.write("01".getBytes());
+                        mOutStream.write(code);
                     }
-                } catch (IOException e){}
+                } catch (IOException e){}*/
+
+
             }
         });
     }
+
 
     private class ConnectAsyncTask extends AsyncTask<BluetoothDevice, Integer, BluetoothSocket>{
         private BluetoothDevice mDevice;
@@ -89,10 +103,11 @@ public class MainActiviy extends Activity {
         protected BluetoothSocket doInBackground(BluetoothDevice... device){
             mDevice = device[0];
             try {
-                String mUUID = "00001101-0000-1000-8000-00805F9B34FB";
-                mSocket = mDevice.createInsecureRfcommSocketToServiceRecord(UUID.fromString(mUUID));
+                mSocket = mDevice.createInsecureRfcommSocketToServiceRecord(MY_UUID_INSECURE);
                 mSocket.connect();
-            } catch (Exception e){}
+            } catch (Exception e){
+                Log.e(TAG, "Socket create() failed", e);
+            }
             return  mSocket;
         }
         @Override
@@ -100,6 +115,138 @@ public class MainActiviy extends Activity {
             btSocket = result;
 
         }
+    }
+
+    private class ConnectThread extends Thread {
+        private final BluetoothSocket mmSocket;
+        private final BluetoothDevice mmDevice;
+
+        public ConnectThread(BluetoothDevice device) {
+            // Use a temporary object that is later assigned to mmSocket,
+            // because mmSocket is final
+            BluetoothSocket tmp = null;
+            mmDevice = device;
+
+            // Get a BluetoothSocket to connect with the given BluetoothDevice
+            try {
+                // MY_UUID is the app's UUID string, also used by the server code
+                tmp = device.createRfcommSocketToServiceRecord(MY_UUID_SECURE);
+            } catch (IOException e) { }
+            mmSocket = tmp;
+        }
+
+        public void run() {
+            // Cancel discovery because it will slow down the connection
+            btAdapter.cancelDiscovery();
+
+            try {
+                // Connect the device through the socket. This will block
+                // until it succeeds or throws an exception
+                mmSocket.connect();
+            } catch (IOException connectException) {
+                // Unable to connect; close the socket and get out
+                try {
+                    mmSocket.close();
+                } catch (IOException closeException) { }
+                return;
+            }
+
+            // Do work to manage the connection (in a separate thread)
+            //ConnectedThread manageConnectedThread = new ConnectedThread();
+            //manageConnectedSocket(mmSocket);
+            mConnectedThread = new ConnectedThread(mmSocket);
+            mConnectedThread.start();
+        }
+
+        /** Will cancel an in-progress connection, and close the socket */
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) { }
+        }
+    }
+
+    private class ConnectedThread extends Thread {
+        private final BluetoothSocket mmSocket;
+        private final OutputStream mmOutStream;
+
+        public ConnectedThread(BluetoothSocket socket) {
+            mmSocket = socket;
+            OutputStream tmpOut = null;
+
+            // Get the input and output streams, using temp objects because
+            // member streams are final
+            try {
+                tmpOut = socket.getOutputStream();
+            } catch (IOException e) { }
+
+            mmOutStream = tmpOut;
+        }
+
+        public void run() {
+            byte[] buffer = new byte[1024];  // buffer store for the stream
+            int bytes; // bytes returned from read()
+        }
+
+        /* Call this from the main activity to send data to the remote device */
+        public void write(byte[] bytes) {
+            try {
+                mmOutStream.write(bytes);
+            } catch (IOException e) { }
+        }
+
+        /* Call this from the main activity to shutdown the connection */
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) { }
+        }
+    }
+
+    private void connectDevice() {
+        Log.d(TAG, "connectDevice ");
+        // Get the device MAC address
+        //String address = data.getExtras().getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
+        // Get the BluetoothDevice object
+        BluetoothDevice btDevice = btAdapter.getRemoteDevice(address);
+        // Attempt to connect to the device
+        //mChatService.connect(device, secure);
+        Toast.makeText(this, "Device: " + btDevice.getName(), Toast.LENGTH_LONG).show();
+        //connAsynTask.execute(btDevice);
+        mConnectThread = new ConnectThread(btDevice);
+        mConnectThread.start();
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        Log.d(TAG, "onActivityResult " + resultCode);
+        connectDevice();
+        /*switch (requestCode) {
+            connectDevice();
+            case REQUEST_CONNECT_DEVICE_SECURE:
+                // When DeviceListActivity returns with a device to connect
+                if (resultCode == Activity.RESULT_OK) {
+                    connectDevice();
+                }
+                break;
+            case REQUEST_CONNECT_DEVICE_INSECURE:
+                // When DeviceListActivity returns with a device to connect
+                if (resultCode == Activity.RESULT_OK) {
+                    connectDevice();
+                }
+                break;
+            case REQUEST_ENABLE_BT:
+                // When the request to enable Bluetooth returns
+                if (resultCode == Activity.RESULT_OK) {
+                    // Bluetooth is now enabled, so set up a chat session
+                    //setupChat();
+                } else {
+                    // User did not enable Bluetooth or an error occurred
+                    Log.d(TAG, "BT not enabled");
+                    Toast.makeText(this, "BT not enabled", Toast.LENGTH_SHORT).show();
+                    finish();
+                }
+        }*/
     }
 
     @Override
@@ -122,6 +269,22 @@ public class MainActiviy extends Activity {
     }
 
     @Override
+    public void onStart() {
+        super.onStart();
+        Log.e(TAG, "++ ON START ++");
+
+        // If BT is not on, request that it be enabled.
+        // setupChat() will then be called during onActivityResult
+        /*if (!btAdapter.isEnabled()) {
+            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+            // Otherwise, setup the chat session
+        } else {
+            //Connected
+        }*/
+    }
+
+    @Override
     protected void onResume(){
         super.onResume();
         Log.e(TAG, "+ ON RESUME +");
@@ -134,6 +297,12 @@ public class MainActiviy extends Activity {
 
         if (btAdapter != null)
             btAdapter.cancelDiscovery();
-        //this.unregisterReceiver();
+        if (btSocket != null){
+            try {
+                btSocket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "close() of connect socket failed", e);
+            }
+        }
     }
 }
